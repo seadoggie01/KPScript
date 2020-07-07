@@ -57,20 +57,88 @@ Unimplemented
 ;                  $sDatabaseFile       - full path to the kdbx file.
 ;                  $aUnlockKey          - an Unlock array from _KPScript_UnlockKey.
 ;                  $sEntryProperties    - a string returned from _KPScript_EntryProperties.
-; Return values .: None
+; Return values .: Success - True
+;                  Failure - False and sets @error to 1
 ; Author ........: Seadoggie01
 ; Modified ......:
-; Remarks .......:
+; Remarks .......: This method WILL create a group if you pass a new group name or path. If no path is passed, it will be
+;                  created in the base directory.
 ; Related .......:
 ; Link ..........:
 ; Example .......: No
 ; ===============================================================================================================================
 Func _KPScript_EntryAdd($sKPScript, $sDatabaseFile, $aUnlockKey, $sEntryProperties)
 
-	Local $vRet = __KPScript_Run($sKPScript, "AddEntry", __KPScript_StringWrap($sDatabaseFile) & " " & $sEntryProperties, $aUnlockKey)
+	; Because some things don't make sense, this command uses a different syntax. Ugh!
+	#ToDo: Make this into regex... if someone uses -set- in any property's value, this will screw it up. FML._
+;~ 		Or add a variable to _EntryProperties specifying which function it will be used for
+;~ 		Or make the properties an array and spread them out in the proper function using StringReplace with a count of 1 AND ensure that it happens before the colon
+;~		AAAAAAAAAAAAAAAAAAAAAAAAAAAARRRRRRRRRRRRRRRRRRRRRRRRGGGGGGGGGGGGGGGGGGGGGGGGGGGGGHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!!!!!!!!!!!!!!!!!!!!!!
+	$sEntryProperties = StringReplace($sEntryProperties, "-set-", "-")
+
+	__KPScript_Run($sKPScript, "AddEntry", __KPScript_StringWrap($sDatabaseFile) & " " & $sEntryProperties, $aUnlockKey)
 	If @error Then Return SetError(1, @error, False)
 
-	Return $vRet
+	Return True
+
+EndFunc
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _KPScript_EntryProperties
+; Description ...:
+; Syntax ........: _KPScript_EntryProperties([$vTitle = Default[, $sUserName = Default[, $sPassword = Default[, $sURL = Default[,
+;                  $sNotes = Default[, $sGroupName = Default[, $sGroupPath = Default[, $iIcon = Default[, $iCustIcon = Default[,
+;                  $bExpires = Default[, $sExpiryTime = Default]]]]]]]]]]])
+; Parameters ....: $vTitle              - [optional] a variant value. Default is Default.
+;                  $sUserName           - [optional] a string value. Default is Default.
+;                  $sPassword           - [optional] a string value. Default is Default.
+;                  $sURL                - [optional] a string value. Default is Default.
+;                  $sNotes              - [optional] a string value. Default is Default.
+;                  $sGroupName          - [optional] a string value. Default is Default.
+;                  $sGroupPath          - [optional] a string value. Default is Default.
+;                  $iIcon               - [optional] an integer value. Default is Default.
+;                  $iCustIcon           - [optional] an integer value. Default is Default.
+;                  $bExpires            - [optional] a boolean value. Default is Default.
+;                  $sExpiryTime         - [optional] a string value. Default is Default.
+; Return values .: None
+; Author ........: Seadoggie01
+; Modified ......:
+; Remarks .......: Used for setting values in _EntryAdd and _EntryEdit
+; Related .......:
+; Link ..........:
+; Example .......: No
+; ===============================================================================================================================
+Func _KPScript_EntryProperties($vTitle = Default, $sUserName = Default, $sPassword = Default, $sURL = Default, $sNotes = Default, $sGroupName = Default, $sGroupPath = Default, $iIcon = Default, $iCustIcon = Default, $bExpires = Default, $sExpiryTime = Default)
+
+	Local $aProperties = [["Title",""],["UserName",""],["Password",""],["URL",""],["Notes",""],["GroupName",""],["GroupPath",""],["Icon",""],["CustomIcon",""],["Expires",""],["ExpiryTime",""]]
+	If IsArray($vTitle) Then
+		$aProperties = $vTitle
+	Else
+		If Not IsKeyword($vTitle) Then $aProperties[0][1] = $vTitle
+		If Not IsKeyword($sUserName) Then $aProperties[1][1] = $sUserName
+		If Not IsKeyword($sPassword) Then $aProperties[2][1] = $sPassword
+		If Not IsKeyword($sURL) Then $aProperties[3][1] = $sURL
+		If Not IsKeyword($sNotes) Then $aProperties[4][1] = $sNotes
+		If Not IsKeyword($sGroupName) Then $aProperties[5][1] = $sGroupName
+		If Not IsKeyword($sGroupPath) Then $aProperties[6][1] = $sGroupPath
+		If Not IsKeyword($iIcon) Then $aProperties[7][1] = $iIcon
+		If Not IsKeyword($iCustIcon) Then $aProperties[8][1] = $iCustIcon
+		If Not IsKeyword($bExpires) Then $aProperties[9][1] = $bExpires
+		If Not IsKeyword($sExpiryTime) Then $aProperties[10][1] = $sExpiryTime
+	EndIf
+
+	Local $sProperties = ""
+	For $i=0 To UBound($aProperties) - 1
+		If $aProperties[$i][1] <> "" Then
+			If StringInStr("Icon|CustomIcon|Expires|ExpiryTime|", $aProperties[$i][0] & "|") Then
+				$sProperties &= " -setx-" & $aProperties[$i][0] & ":" & __KPScript_StringWrap($aProperties[$i][1])
+			Else
+				$sProperties &= " -set-" & $aProperties[$i][0] & ":" & __KPScript_StringWrap($aProperties[$i][1])
+			EndIf
+		EndIf
+	Next
+
+	Return $sProperties
 
 EndFunc
 
@@ -96,7 +164,8 @@ Func _KPScript_EntryDelete($sKPScript, $sDatabaseFile, $aUnlockKey, $sIdentifica
 	Local $vRet = __KPScript_Run($sKPScript, "DeleteEntry", __KPScript_StringWrap($sDatabaseFile) & " " & $sIdentification, $aUnlockKey)
 	If @error Then Return SetError(1, @error, False)
 
-	Return True
+	#ToDo: Check if this returns true, otherwise discard and return true
+	Return $vRet ; True?
 
 EndFunc
 
@@ -124,9 +193,18 @@ Func _KPScript_EntryDeleteAll($sKPScript, $sDatabaseFile, $aUnlockKey)
 
 EndFunc
 
+Func _KPScript_EntryEdit($sKPScript, $sDatabaseFile, $aUnlockKey, $sIdentification, $sEntryProperties)
+
+	Local $vRet = __KPScript_Run($sKPScript, "EditEntry", __KPScript_StringWrap($sDatabaseFile) & " " & $sIdentification & " " & $sEntryProperties, $aUnlockKey, True)
+	If @error Then Return SetError(1, @error, False)
+
+	Return $vRet ; True?
+
+EndFunc
+
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _KPScript_EntryIdentify
-; Description ...:
+; Description ...: Creates a string used in identifying entries
 ; Syntax ........: _KPScript_EntryIdentify($vIdentify[, $sValue = Default])
 ; Parameters ....: $vIdentify           - a variant value.
 ;                  $sValue              - [optional] a string value. Default is Default.
@@ -134,7 +212,7 @@ EndFunc
 ; Author ........: Seadoggie01
 ; Modified ......:
 ; Remarks .......:
-; Related .......:
+; Related .......: _KPScript_EntryList, _KPScript_EntryStringGet, _KPScript_EntryEdit, _KPScript_DeleteEntry, _KPScript_MoveEntry
 ; Link ..........:
 ; Example .......: No
 ; ===============================================================================================================================
@@ -142,6 +220,7 @@ Func _KPScript_EntryIdentify($vIdentify, $sValue = Default)
 
 	Local $aIdentify[0][0]
 	If IsArray($vIdentify) Then
+		#ToDo: Check array dimensions
 		$aIdentify = $vIdentify
 	Else
 		ReDim $aIdentify[1][2]
@@ -202,72 +281,13 @@ Func _KPScript_EntryList($sKPScript, $sDatabaseFile, $aUnlockKey, $sIdentificati
 EndFunc
 
 ; #FUNCTION# ====================================================================================================================
-; Name ..........: _KPScript_EntryProperties
-; Description ...:
-; Syntax ........: _KPScript_EntryProperties([$vTitle = Default[, $sUserName = Default[, $sPassword = Default[, $sURL = Default[,
-;                  $sNotes = Default[, $sGroupName = Default[, $sGroupPath = Default[, $iIcon = Default[, $iCustIcon = Default[,
-;                  $bExpires = Default[, $sExpiryTime = Default]]]]]]]]]]])
-; Parameters ....: $vTitle              - [optional] a variant value. Default is Default.
-;                  $sUserName           - [optional] a string value. Default is Default.
-;                  $sPassword           - [optional] a string value. Default is Default.
-;                  $sURL                - [optional] a string value. Default is Default.
-;                  $sNotes              - [optional] a string value. Default is Default.
-;                  $sGroupName          - [optional] a string value. Default is Default.
-;                  $sGroupPath          - [optional] a string value. Default is Default.
-;                  $iIcon               - [optional] an integer value. Default is Default.
-;                  $iCustIcon           - [optional] an integer value. Default is Default.
-;                  $bExpires            - [optional] a boolean value. Default is Default.
-;                  $sExpiryTime         - [optional] a string value. Default is Default.
-; Return values .: None
-; Author ........: Seadoggie01
-; Modified ......:
-; Remarks .......:
-; Related .......:
-; Link ..........:
-; Example .......: No
-; ===============================================================================================================================
-Func _KPScript_EntryProperties($vTitle = Default, $sUserName = Default, $sPassword = Default, $sURL = Default, $sNotes = Default, $sGroupName = Default, $sGroupPath = Default, $iIcon = Default, $iCustIcon = Default, $bExpires = Default, $sExpiryTime = Default)
-
-	Local $aProperties = [["Title",""],["UserName",""],["Password",""],["URL",""],["Notes",""],["GroupName",""],["GroupPath",""],["Icon",""],["CustomIcon",""],["Expires",""],["ExpiryTime",""]]
-	If IsArray($vTitle) Then
-		$aProperties = $vTitle
-	Else
-		If Not IsKeyword($vTitle) Then $aProperties[0][1] = $vTitle
-		If Not IsKeyword($sUserName) Then $aProperties[1][1] = $sUserName
-		If Not IsKeyword($sPassword) Then $aProperties[2][1] = $sPassword
-		If Not IsKeyword($sURL) Then $aProperties[3][1] = $sURL
-		If Not IsKeyword($sNotes) Then $aProperties[4][1] = $sNotes
-		If Not IsKeyword($sGroupName) Then $aProperties[5][1] = $sGroupName
-		If Not IsKeyword($sGroupPath) Then $aProperties[6][1] = $sGroupPath
-		If Not IsKeyword($iIcon) Then $aProperties[7][1] = $iIcon
-		If Not IsKeyword($iCustIcon) Then $aProperties[8][1] = $iCustIcon
-		If Not IsKeyword($bExpires) Then $aProperties[9][1] = $bExpires
-		If Not IsKeyword($sExpiryTime) Then $aProperties[10][1] = $sExpiryTime
-	EndIf
-
-	Local $sProperties = ""
-	For $i=0 To UBound($aProperties) - 1
-		If $aProperties[$i][1] <> "" Then
-			If StringInStr("Icon|CustomIcon|Expires|ExpiryTime|", $aProperties[$i][0] & "|") Then
-				$sProperties &= " -setx" & $aProperties[$i][0] & ":" & __KPScript_StringWrap($aProperties[$i][1])
-			Else
-				$sProperties &= " -" & $aProperties[$i][0] & ":" & __KPScript_StringWrap($aProperties[$i][1])
-			EndIf
-		EndIf
-	Next
-
-	Return $sProperties
-
-EndFunc
-
-; #FUNCTION# ====================================================================================================================
 ; Name ..........: _KPScript_EntryStringGet
 ; Description ...:
 ; Syntax ........: _KPScript_EntryStringGet($sKPScript, $sDatabaseFile, $aUnlockKey, $sField, $sIdentification[, $bFail = False])
 ; Parameters ....: $sKPScript           - full path to KPScript.exe.
 ;                  $sDatabaseFile       - full path to the kdbx file.
 ;                  $aUnlockKey          - an Unlock array from _KPScript_UnlockKey.
-;                  $sField              - a string value.
+;                  $sField              - name of the field to return.
 ;                  $sIdentification     - a string value.
 ;                  $bFail               - [optional] a boolean value. Default is False.
 ; Return values .: None
@@ -418,7 +438,7 @@ EndFunc
 ; Link ..........:
 ; Example .......: No
 ; ===============================================================================================================================
-Func __KPScript_Run($sKPScript, $sCmd = "", $sParam = "", $aUnlockKey = Default)
+Func __KPScript_Run($sKPScript, $sCmd = "", $sParam = "", $aUnlockKey = Default, $bDebugging = False)
 
 	; Wrap with quotes as needed
 	If StringInStr($sKPScript, " ") Then $sKPScript = '"' & $sKPScript & '"'
@@ -430,6 +450,7 @@ Func __KPScript_Run($sKPScript, $sCmd = "", $sParam = "", $aUnlockKey = Default)
 		$sParam &= " -keyprompt"
 	EndIf
 	Local $sFullCommand = $sKPScript & $sCmd & $sParam
+	If $bDebugging Then ConsoleWrite($sFullCommand & @CRLF)
 
 	Local $iPID = Run($sFullCommand, "", @SW_HIDE, $STDOUT_CHILD + $STDIN_CHILD)
 	If @error Then Return SetError(1, @error, False)
@@ -459,7 +480,7 @@ Func __KPScript_Run($sKPScript, $sCmd = "", $sParam = "", $aUnlockKey = Default)
 
 	ProcessWaitClose($iPID)
 
-	Local $sParsed = __KPScript_ParseOutput($iPID)
+	Local $sParsed = __KPScript_ParseOutput($iPID, $bDebugging)
 	If @error Then Return SetError(2, @error, False)
 
 	Return $sParsed
@@ -482,10 +503,12 @@ EndFunc
 ; Link ..........:
 ; Example .......: No
 ; ===============================================================================================================================
-Func __KPScript_ParseOutput($iPID)
+Func __KPScript_ParseOutput($iPID, $bDebugging = False)
 
 	Local $sOutput = StdoutRead($iPID)
 	If @error Then Return SetError(1, 0, False)
+
+	If $bDebugging Then ConsoleWrite("Output: " & $sOutput)
 
 	$sOutput = StringStripWS($sOutput, $STR_STRIPLEADING + $STR_STRIPTRAILING)
 	Local $sLastLine, $iPos = StringInStr($sOutput, @CRLF, 0, -1)
@@ -498,6 +521,8 @@ Func __KPScript_ParseOutput($iPID)
 		Return StringStripWS(StringReplace($sOutput, "OK: Operation completed successfully.", ""), $STR_STRIPLEADING + $STR_STRIPTRAILING)
 	ElseIf StringLeft($sLastLine, 2) = "E:" Then
 		Return SetError(2, 0, $sOutput)
+	Else
+		If $bDebugging Then ConsoleWrite("Other last line: " & $sLastLine & @CRLF)
 	EndIf
 
 	Return $sOutput
@@ -525,3 +550,18 @@ Func __KPScript_StringWrap($sText)
 EndFunc
 
 #EndRegion ### Internal Functions ###
+
+Func __KPScript_ParseProperties($aProperties, $sFieldNamePrefix, $sSpecialPrefix)
+
+	Local $sFields = "Title|UserName|Password|URL|Notes|"
+	Local $sProperties = ""
+	For $i=0 To UBound($aProperties) - 1
+		If StringInStr($sFields, $aProperties[$i][0] & "|") Then
+			$sProperties &= $sFieldNamePrefix & $aProperties[$i][0] & ":" & __KPScript_StringWrap($aProperties[$i][1]
+		Else
+			$sProperties &= $sSpecialPrefix & $aProperties[$i][0] & ":" & __KPScript_StringWrap($aProperties[$i][1]
+		EndIf
+	Next
+	Return $sProperties
+
+EndFunc
